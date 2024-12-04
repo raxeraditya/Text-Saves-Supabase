@@ -47,7 +47,7 @@ export default function AutoSaveEditor() {
         if (error) {
           console.error("Error loading messages:", error);
         } else {
-          setMessages(data || []); // Store all messages
+          setMessages(data); // Directly store the fetched array
         }
       };
 
@@ -58,7 +58,6 @@ export default function AutoSaveEditor() {
   // Auto-save functionality
   useEffect(() => {
     const saveText = async () => {
-      // Step 1: Fetch the current content for the user
       const { data, error: fetchError } = await supabase
         .from("editor_content")
         .select("content")
@@ -70,12 +69,8 @@ export default function AutoSaveEditor() {
         return;
       }
 
-      // Step 2: If content already exists, append the new text to it
-      const updatedText = data
-        ? data.content + "\n\n" + text // Append new text to existing content
-        : text; // If no previous content, just save the new text
+      const updatedText = data ? data.content + "\n\n" + text : text;
 
-      // Step 3: Perform the upsert (insert or update) with the combined text
       const { error } = await supabase
         .from("editor_content")
         .upsert({ user_id: userId, content: updatedText });
@@ -90,7 +85,7 @@ export default function AutoSaveEditor() {
     };
 
     if (!isSaved && userId) {
-      const timer = setTimeout(saveText, 3000); // Save after 3 seconds of inactivity
+      const timer = setTimeout(saveText, 3000);
       return () => clearTimeout(timer);
     }
   }, [text, isSaved, userId]);
