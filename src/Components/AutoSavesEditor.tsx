@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Textarea } from "./ui/textarea";
@@ -47,7 +45,7 @@ export default function AutoSaveEditor() {
         if (error) {
           console.error("Error loading messages:", error);
         } else {
-          setMessages(data); // Directly store the fetched array
+          setMessages(data || []); // Store all messages
         }
       };
 
@@ -58,19 +56,29 @@ export default function AutoSaveEditor() {
   // Auto-save functionality
   useEffect(() => {
     const saveText = async () => {
+      // Step 1: Fetch current content for the user
       const { data, error: fetchError } = await supabase
         .from("editor_content")
         .select("content")
         .eq("user_id", userId)
-        .single(); // Only fetch one row, assuming 'user_id' is unique
+        .single(); // Expect a single row for the user
 
       if (fetchError) {
-        console.error("Error fetching current content:", fetchError);
+        // Handle the case where no rows are returned
+        if (fetchError.code === "PGRST116") {
+          console.log("No content found for this user, creating new entry.");
+        } else {
+          console.error("Error fetching current content:", fetchError);
+        }
         return;
       }
 
-      const updatedText = data ? data.content + "\n\n" + text : text;
+      // Step 2: If content already exists, append the new text to it
+      const updatedText = data
+        ? data.content + "\n\n" + text // Append new text to existing content
+        : text; // If no previous content, just save the new text
 
+      // Step 3: Perform the upsert (insert or update) with the combined text
       const { error } = await supabase
         .from("editor_content")
         .upsert({ user_id: userId, content: updatedText });
@@ -85,7 +93,7 @@ export default function AutoSaveEditor() {
     };
 
     if (!isSaved && userId) {
-      const timer = setTimeout(saveText, 3000);
+      const timer = setTimeout(saveText, 3000); // Save after 3 seconds of inactivity
       return () => clearTimeout(timer);
     }
   }, [text, isSaved, userId]);
