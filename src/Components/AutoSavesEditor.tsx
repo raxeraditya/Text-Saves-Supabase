@@ -2,12 +2,10 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Textarea } from "./ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Save, CheckCircle, Bold, Italic } from "lucide-react";
+import { Save, CheckCircle } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import supabase from "../lib/supabase";
-import { Button } from "./ui/button";
 
-// Define the type for each message
 type Message = {
   content: string;
 };
@@ -17,26 +15,27 @@ export default function AutoSaveEditor() {
   const [isSaved, setIsSaved] = useState(true);
   const [userId, setUserId] = useState("");
   const [showSavedMessage, setShowSavedMessage] = useState(false);
-
-  // Explicitly define the messages state type as an array of Message objects
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // Set or get the user ID from sessionStorage
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    setIsSaved(false);
+  };
+
   useEffect(() => {
     const storedUserId = localStorage.getItem("editor_user_id");
     if (storedUserId) {
       setUserId(storedUserId);
     } else {
-      const newUserId = uuidv4(); // Generate a new unique ID
+      const newUserId = uuidv4();
       localStorage.setItem("editor_user_id", newUserId);
       setUserId(newUserId);
     }
   }, []);
 
-  // Load all messages from Supabase on component mount
   useEffect(() => {
-    if (userId) {
-      const loadMessages = async () => {
+    const loadMessages = async () => {
+      if (userId) {
         const { data, error } = await supabase
           .from("editor_content")
           .select("content")
@@ -44,44 +43,36 @@ export default function AutoSaveEditor() {
 
         if (error) {
           console.error("Error loading messages:", error);
-        } else {
-          setMessages(data || []); // Store all messages
+        } else if (data) {
+          setMessages(data);
         }
-      };
+      }
+    };
 
-      loadMessages();
-    }
-  }, [userId, isSaved]);
+    loadMessages();
+  }, [userId]);
 
-  // Auto-save functionality
   useEffect(() => {
     const saveText = async () => {
-      // Step 1: Fetch current content for the user
       const { data, error: fetchError } = await supabase
         .from("editor_content")
         .select("content")
         .eq("user_id", userId)
-        .single(); // Expect a single row for the user
+        .single();
 
       if (fetchError) {
-        // Handle the case where no rows are returned
         if (fetchError.code === "PGRST116") {
           console.log("No content found for this user, creating new entry.");
         } else {
           console.error("Error fetching current content:", fetchError);
         }
-        return;
       }
 
-      // Step 2: If content already exists, append the new text to it
-      const updatedText = data
-        ? data.content + "\n\n" + text // Append new text to existing content
-        : text; // If no previous content, just save the new text
+      const updatedText = data ? data.content + "\n\n" + text : text;
 
-      // Step 3: Perform the upsert (insert or update) with the combined text
       const { error } = await supabase
         .from("editor_content")
-        .upsert({ user_id: userId, content: updatedText });
+        .upsert([{ user_id: userId, content: updatedText }]);
 
       if (error) {
         console.error("Error saving text:", error);
@@ -93,53 +84,10 @@ export default function AutoSaveEditor() {
     };
 
     if (!isSaved && userId) {
-      const timer = setTimeout(saveText, 3000); // Save after 3 seconds of inactivity
+      const timer = setTimeout(saveText, 3000);
       return () => clearTimeout(timer);
     }
   }, [text, isSaved, userId]);
-
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
-    setIsSaved(false);
-  };
-
-  const applyFormatting = (type: "bold" | "italic") => {
-    const textarea = document.querySelector("textarea");
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = text.substring(start, end);
-    const beforeText = text.substring(0, start);
-    const afterText = text.substring(end);
-
-    let formattedText = "";
-    let cursorOffset = 2;
-
-    if (type === "bold") {
-      formattedText =
-        selectedText.startsWith("**") && selectedText.endsWith("**")
-          ? selectedText.slice(2, -2)
-          : `**${selectedText}**`;
-      cursorOffset = selectedText.startsWith("**") ? -2 : 2;
-    } else if (type === "italic") {
-      formattedText =
-        selectedText.startsWith("*") && selectedText.endsWith("*")
-          ? selectedText.slice(1, -1)
-          : `*${selectedText}*`;
-      cursorOffset = selectedText.startsWith("*") ? -1 : 1;
-    }
-
-    const newText = beforeText + formattedText + afterText;
-    setText(newText);
-    setIsSaved(false);
-
-    // Set cursor position after the inserted formatting
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + cursorOffset, end + cursorOffset);
-    }, 0);
-  };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
@@ -151,7 +99,7 @@ export default function AutoSaveEditor() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
             >
-              Enhanced Text Editor
+              Simple Text Editor
             </motion.span>
             <AnimatePresence mode="wait">
               {isSaved ? (
@@ -181,57 +129,29 @@ export default function AutoSaveEditor() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <motion.div
-              className="relative flex-1"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <div className="mb-2 flex items-center space-x-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => applyFormatting("bold")}
-                  aria-label="Bold"
-                >
-                  <Bold className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => applyFormatting("italic")}
-                  aria-label="Italic"
-                >
-                  <Italic className="w-4 h-4" />
-                </Button>
-              </div>
-              <Textarea
-                value={text}
-                onChange={handleTextChange}
-                placeholder="Start typing here..."
-                className="min-h-[300px] md:min-h-[400px] resize-none"
-              />
-              <div className="mt-2 text-sm text-gray-500">
-                Words: {text.trim().split(/\s+/).filter(Boolean).length} |
-                Characters: {text.length}
-              </div>
-              <AnimatePresence>
-                {showSavedMessage && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="absolute bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg"
-                  >
-                    Text saved successfully!
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+          <Textarea
+            value={text}
+            onChange={handleTextChange}
+            placeholder="Start typing here..."
+            className="min-h-[300px] md:min-h-[400px] resize-none"
+          />
+          <div className="mt-2 text-sm text-gray-500">
+            Words: {text.trim().split(/\s+/).filter(Boolean).length} |
+            Characters: {text.length}
           </div>
+          <AnimatePresence>
+            {showSavedMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="absolute bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg"
+              >
+                Text saved successfully!
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {/* Display all messages */}
           <div className="mt-4">
             <h3 className="text-lg font-semibold text-gray-700">
               Saved Messages
