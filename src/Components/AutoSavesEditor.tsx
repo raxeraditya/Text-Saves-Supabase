@@ -16,7 +16,7 @@ export default function AutoSaveEditor() {
   const [userId, setUserId] = useState("");
   const [showSavedMessage, setShowSavedMessage] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-
+  console.log(text);
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
     setIsSaved(false);
@@ -54,20 +54,12 @@ export default function AutoSaveEditor() {
 
   useEffect(() => {
     const saveText = async () => {
-      const { data, error: fetchError } = await supabase
+      const { data } = await supabase
         .from("editor_content")
         .select("content")
         .eq("user_id", userId)
         .single();
-
-      if (fetchError) {
-        if (fetchError.code === "PGRST116") {
-          console.log("No content found for this user, creating new entry.");
-        } else {
-          console.error("Error fetching current content:", fetchError);
-        }
-      }
-
+      console.log(text);
       const updatedText = data ? data.content + "\n\n" + text : text;
 
       const { error } = await supabase
